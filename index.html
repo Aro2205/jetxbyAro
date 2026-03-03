@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jet X by Aro Nambinina</title>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+<style>
+body{margin:0;font-family:Arial;background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);color:white;text-align:center;overflow-x:hidden;}
+.container{max-width:420px;margin:20px auto;padding:20px;}
+h1{color:#00ffff;}
+button{width:100%;padding:15px;margin-top:10px;border:none;border-radius:10px;font-size:16px;cursor:pointer;}
+.predict{background:linear-gradient(90deg,#ff8a00,#e52e71);color:white;}
+.card{margin-top:20px;padding:20px;background:rgba(0,0,0,0.4);border-radius:15px;}
+.multiplier{font-size:35px;color:#00ff99;}
+.time{font-size:18px;margin-top:10px;color:#00ffff;}
+input{padding:10px;width:90%;border-radius:10px;border:none;}
+img{max-width:100%;margin-top:10px;border-radius:10px;}
+#detectedList{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px;justify-content:center;}
+.gain-box{margin-bottom:20px;padding:20px;background:rgba(0,0,0,0.6);border-radius:15px;box-shadow:0 0 20px #00ffff;}
+.gain-multiplier{font-size:40px;font-weight:bold;color:#00ff99;}
+</style>
+</head>
+<body>
+
+<div class="container">
+<h1>Jet X by Aro Nambinina</h1>
+
+<div class="gain-box">
+<div>JETX LIVE</div>
+<div id="gainMultiplier" class="gain-multiplier">1.00x</div>
+<div id="gainMessage"></div>
+</div>
+
+<!-- Premium -->
+<div id="lockScreen">
+<p>Entrez votre code premium :</p>
+<input type="text" id="premiumCode" placeholder="Code premium">
+<button onclick="unlockSite()">Valider</button>
+<p id="lockMsg" style="color:red;"></p>
+</div>
+
+<div id="premiumContent" style="display:none;">
+<h3>Importer capture historique</h3>
+<input type="file" accept="image/*" onchange="analyzeImage(event)">
+<img id="preview">
+<div id="detectedList"></div>
+<p id="ocrStatus"></p>
+
+<p>Dernier crash (HH:MM:SS) :</p>
+<input type="text" id="lastCrashInput" placeholder="Ex: 14:30:20">
+
+<button class="predict" onclick="startPrediction()">Calculer Simulation</button>
+
+<div class="card">
+<div>Moyenne : <span id="average">--</span></div>
+<div>VolatilitÃ© : <span id="volatility">--</span></div>
+<div>â‰¥5x : <span id="p5">--</span></div>
+<div class="multiplier" id="multiplier">1.00x</div>
+<div class="time" id="crashTime">Heure Crash : --:--:--</div>
+</div>
+</div>
+</div>
+
+<script>
+let premium=false;
+let interval;
+let values=[];
+const SECRET_CODE="ARO2025";
+
+/* ---------- SON GAIN ---------- */
+function playMoneySound(){
+    const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const gainFrequencies=[523,659,784,1046];
+    gainFrequencies.forEach((freq,index)=>{
+        const osc=audioCtx.createOscillator();
+        const gainNode=audioCtx.createGain();
+        osc.type="triangle";
+        osc.frequency.value=freq;
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        gainNode.gain.setValueAtTime(0.001,audioCtx.currentTime+index*0.1);
+        gainNode.gain.exponentialRampToValueAtTime(0.5,audioCtx.currentTime+index*0.1+0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+index*0.1+0.3);
+        osc.start(audioCtx.currentTime+index*0.1);
+        osc.stop(audioCtx.currentTime+index*0.1+0.3);
+    });
+}
+
+/* ---------- ANIMATION LIVE ---------- */
+window.onload=function(){
+    let multiplier=1;
+    let target=(Math.random()*3+2);
+    let gainEl=document.getElementById("gainMultiplier");
+    let msgEl=document.getElementById("gainMessage");
+
+    let anim=setInterval(function(){
+        multiplier+=0.08;
+        gainEl.innerText=multiplier.toFixed(2)+"x";
+        if(multiplier>=target){
+            clearInterval(anim);
+            playMoneySound();
+            if(navigator.vibrate) navigator.vibrate(200);
+            msgEl.innerText="ðŸ’° GAIN Ã€ "+target.toFixed(2)+"x !";
+        }
+    },40);
+};
+
+/* ---------- PREMIUM ---------- */
+function unlockSite(){
+    let code=document.getElementById("premiumCode").value.trim();
+    if(code===SECRET_CODE){
+        premium=true;
+        document.getElementById("lockScreen").style.display="none";
+        document.getElementById("premiumContent").style.display="block";
+    }else{
+        document.getElementById("lockMsg").innerText="Code incorrect";
+    }
+}
+
+/* ---------- OCR ---------- */
+function analyzeImage(event){
+    const file=event.target.files[0];
+    if(!file) return;
+
+    const reader=new FileReader();
+    reader.onload=function(){
+        document.getElementById("preview").src=reader.result;
+        document.getElementById("ocrStatus").innerText="Analyse en cours...";
+
+        Tesseract.recognize(reader.result,'eng')
+        .then(({data:{text}})=>{
+            let numbers=text.match(/\d+\.\d+/g);
+            if(numbers){
+                values=numbers.map(n=>parseFloat(n));
+                displayValues(values);
+                analyseStats(values);
+                document.getElementById("ocrStatus").innerText=
+                "Multiplicateurs dÃ©tectÃ©s : "+values.length;
+            }else{
+                document.getElementById("ocrStatus").innerText=
+                "Aucun multiplicateur dÃ©tectÃ©.";
+            }
+        });
+    };
+    reader.readAsDataURL(file);
+}
+
+/* ---------- AFFICHAGE ---------- */
+function displayValues(vals){
+    const container=document.getElementById("detectedList");
+    container.innerHTML="";
+    vals.forEach(val=>{
+        let span=document.createElement("div");
+        span.innerText=val.toFixed(2)+"x";
+        span.style.padding="6px 10px";
+        span.style.borderRadius="8px";
+        span.style.fontWeight="bold";
+        span.style.background=val>=2?"#0f0f2d":"#2d0f0f";
+        span.style.color=val>=2?"#00ff99":"#ff4444";
+        container.appendChild(span);
+    });
+}
+
+/* ---------- ANALYSE STAT ---------- */
+let moyenne=2, volatilite=1, p5=0;
+
+function analyseStats(vals){
+    const n=vals.length;
+    moyenne=vals.reduce((a,b)=>a+b,0)/n;
+    const variance=vals.reduce((a,b)=>a+Math.pow(b-moyenne,2),0)/n;
+    volatilite=Math.sqrt(variance);
+    p5=vals.filter(v=>v>=5).length/n;
+
+    document.getElementById("average").innerText=moyenne.toFixed(2);
+    document.getElementById("volatility").innerText=volatilite.toFixed(2);
+    document.getElementById("p5").innerText=(p5*100).toFixed(1)+"%";
+}
+
+/* ---------- PREDICTION ---------- */
+function startPrediction(){
+    if(!premium) return;
+
+    let score = moyenne + volatilite + (p5*50);
+    let estimation;
+
+    if(score > 100) estimation = 7 + Math.random()*6;
+    else if(score > 50) estimation = 3 + Math.random()*4;
+    else estimation = 1.5 + Math.random()*2;
+
+    // RÃ©cupÃ©ration de l'heure du dernier crash
+    let lastCrashStr=document.getElementById("lastCrashInput").value.trim();
+    let lastCrash=new Date();
+
+    if(lastCrashStr.match(/^\d{2}:\d{2}:\d{2}$/)){
+        const parts=lastCrashStr.split(":");
+        lastCrash.setHours(parseInt(parts[0]));
+        lastCrash.setMinutes(parseInt(parts[1]));
+        lastCrash.setSeconds(parseInt(parts[2]));
+    }
+
+    // Estimation du prochain crash proportionnelle Ã  l'estimation
+    let delayMinutes = 1 + estimation/3;
+    let nextCrash = new Date(lastCrash.getTime() + delayMinutes*60000);
+
+    document.getElementById("crashTime").innerText =
+        "Heure Crash : "+nextCrash.toLocaleTimeString();
+
+    let current = 1;
+    clearInterval(interval);
+
+    interval=setInterval(function(){
+        current += 0.05;
+        document.getElementById("multiplier").innerText =
+        current.toFixed(2)+"x";
+
+        if(current >= estimation){
+            clearInterval(interval);
+        }
+    },50);
+}
+</script>
+</body>
+</html>
